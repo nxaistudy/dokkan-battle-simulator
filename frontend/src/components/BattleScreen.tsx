@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Character, Team, BattleState, BattleAction, CharacterType } from '../types/character';
 import { simulateBattleTurn } from '../utils/battleLogic';
 
@@ -21,6 +21,9 @@ const BattleScreen: React.FC<BattleScreenProps> = ({ playerTeam, enemyTeam, onRe
   const [isAutoBattle, setIsAutoBattle] = useState(false);
   const [battleLog, setBattleLog] = useState<{ text: string; isNew: boolean }[]>([]);
   const [isBattleEnded, setIsBattleEnded] = useState(false);
+  const [isAutoBattlePaused, setIsAutoBattlePaused] = useState(false);
+  const autoBattleRef = useRef<boolean>(false);
+  const pauseRef = useRef<boolean>(false);
 
   const addLogMessage = (message: string) => {
     setBattleLog(prev => [...prev, { text: message, isNew: true }]);
@@ -166,10 +169,17 @@ const BattleScreen: React.FC<BattleScreenProps> = ({ playerTeam, enemyTeam, onRe
   // 자동 전투 시작
   const startAutoBattle = async () => {
     setIsAutoBattle(true);
+    autoBattleRef.current = true;
+    pauseRef.current = false;
     addLogMessage("자동 전투가 시작됩니다!");
     await delay(1000);
 
-    while (!isBattleEnded) {
+    while (autoBattleRef.current && !isBattleEnded) {
+      if (pauseRef.current) {
+        await delay(100); // 일시정지 상태에서는 0.1초마다 체크
+        continue;
+      }
+      
       // 플레이어 턴
       for (const attacker of battleState.playerTeam.characters) {
         if (attacker.currentHealth <= 0) continue;
@@ -303,6 +313,21 @@ const BattleScreen: React.FC<BattleScreenProps> = ({ playerTeam, enemyTeam, onRe
       // 쿨다운 감소
       updateAllCooldowns();
     }
+  };
+
+  const toggleAutoBattlePause = () => {
+    const newPauseState = !isAutoBattlePaused;
+    setIsAutoBattlePaused(newPauseState);
+    pauseRef.current = newPauseState;
+    addLogMessage(newPauseState ? "자동 전투가 일시정지되었습니다." : "자동 전투가 재개되었습니다.");
+  };
+
+  const stopAutoBattle = () => {
+    autoBattleRef.current = false;
+    setIsAutoBattle(false);
+    setIsAutoBattlePaused(false);
+    pauseRef.current = false;
+    addLogMessage("자동 전투가 중지되었습니다.");
   };
 
   // 딜레이 함수
@@ -441,6 +466,16 @@ const BattleScreen: React.FC<BattleScreenProps> = ({ playerTeam, enemyTeam, onRe
           <button onClick={startAutoBattle} className="auto-battle-button">
             자동 전투 시작
           </button>
+        )}
+        {isAutoBattle && !isBattleEnded && (
+          <>
+            <button onClick={toggleAutoBattlePause} className={`pause-button ${isAutoBattlePaused ? 'paused' : ''}`}>
+              {isAutoBattlePaused ? '자동 전투 재개' : '자동 전투 일시정지'}
+            </button>
+            <button onClick={stopAutoBattle} className="stop-button">
+              자동 전투 중지
+            </button>
+          </>
         )}
         <button onClick={onReset} className="reset-button">
           다시 시작
@@ -599,6 +634,44 @@ const BattleScreen: React.FC<BattleScreenProps> = ({ playerTeam, enemyTeam, onRe
         }
 
         .reset-button:hover {
+          background-color: #d32f2f;
+          transform: translateY(-2px);
+        }
+
+        .pause-button {
+          padding: 10px 20px;
+          background-color: #ff9800;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .pause-button:hover {
+          background-color: #f57c00;
+          transform: translateY(-2px);
+        }
+
+        .pause-button.paused {
+          background-color: #2196F3;
+        }
+
+        .pause-button.paused:hover {
+          background-color: #1976D2;
+        }
+
+        .stop-button {
+          padding: 10px 20px;
+          background-color: #f44336;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .stop-button:hover {
           background-color: #d32f2f;
           transform: translateY(-2px);
         }
